@@ -27,11 +27,9 @@ cp .env.example .env
 
 `.env`:
 ```
-MAPBOX_TOKEN=pk.eyJ1...        # your Mapbox public token
-ORS_API_KEY=5b3ce3597...       # your OpenRouteService key
+VITE_MAPBOX_TOKEN=pk.eyJ1...        # your Mapbox public token
+VITE_ORS_API_KEY=5b3ce3597...       # your OpenRouteService key
 ```
-
-Then open `index.html` and replace `YOUR_MAPBOX_TOKEN_HERE` with your token (or wire it up via Vite's `import.meta.env` if you're on the React branch).
 
 ---
 
@@ -39,16 +37,20 @@ Then open `index.html` and replace `YOUR_MAPBOX_TOKEN_HERE` with your token (or 
 
 ```
 water-watch/
-├── index.html          # Mapbox map (Phase 1 static version)
-├── mockData.js         # Live flood data from Environment Agency API
+├── index.html          # HTML entry point
+├── main.py             # FastAPI backend (run from root)
+├── reports.db          # SQLite database (auto-created)
+├── mockData.js         # Legacy flood data reference
 ├── .env.example        # Token template — copy to .env
-├── main.py             # PyCharm placeholder (ignore)
-├── src/                # React + Vite frontend (Phase 2+)
-│   └── ...
-└── backend/            # FastAPI backend (Phase 2+)
-    ├── main.py
-    ├── models.py
-    └── database.py
+├── src/                # React + Vite + TypeScript frontend
+│   ├── App.tsx
+│   ├── api/            # Axios API clients (reports, flood, dev)
+│   ├── components/     # UI components (Map, Header, Panels, Toolbars)
+│   ├── data/           # Static shelter data
+│   ├── map/            # Mapbox GL JS map manager
+│   ├── services/       # Pollers (flood + reports)
+│   └── utils/          # Haversine, severity colours, popup renderer
+└── vite.config.ts
 ```
 
 ---
@@ -57,52 +59,55 @@ water-watch/
 
 | Layer | Choice |
 |---|---|
-| Map Rendering | Mapbox GL JS |
+| Map Rendering | Mapbox GL JS v3 |
 | Routing Engine | OpenRouteService API v2 (`avoid_polygons`) |
-| Polygon Buffering | Turf.js (`@turf/buffer`) — client-side |
-| Frontend | React + Vite |
+| Polygon Buffering | Turf.js (`@turf/buffer`, `@turf/union`) — client-side |
+| Spatial Utils | `@turf/boolean-point-in-polygon`, `@turf/helpers` |
+| Frontend | React 18 + Vite + TypeScript |
+| HTTP Client | Axios |
 | Backend | FastAPI (Python) — auto-docs at `/docs` |
-| Database | SQLite — zero config |
+| Database | SQLite — zero config, file `reports.db` |
 | Flood Data | UK Environment Agency API — no key needed |
-| Hosting / Demo | Ngrok or Railway |
+| Testing | Vitest + fast-check (property-based testing) |
 
 ---
 
 ## Frontend Setup
 
 ```bash
-npm create vite@latest frontend -- --template react
-cd frontend
-npm install mapbox-gl @turf/buffer @turf/helpers axios
-```
-
-Add your Mapbox token to the Vite env file:
-
-```bash
-# frontend/.env
-VITE_MAPBOX_TOKEN=pk.eyJ1...
-```
-
-Access it in code as `import.meta.env.VITE_MAPBOX_TOKEN`.
-
-Start dev server:
-
-```bash
+npm install
 npm run dev
 ```
+
+### Frontend Dependencies
+
+**Runtime:**
+- `mapbox-gl` — map rendering
+- `@turf/buffer` — buffer hazard points into avoidance polygons
+- `@turf/union` — merge overlapping polygons
+- `@turf/boolean-point-in-polygon` — check if shelters are inside hazard zones
+- `@turf/helpers` — GeoJSON helpers
+- `axios` — HTTP requests to backend
+- `react`, `react-dom` — UI framework
+
+**Dev:**
+- `vite`, `@vitejs/plugin-react` — build tooling
+- `typescript` — type safety
+- `vitest` — test runner
+- `fast-check` — property-based testing
+- `@types/mapbox-gl`, `@types/react`, `@types/react-dom` — type definitions
 
 ---
 
 ## Backend Setup
 
 ```bash
-cd backend
 python -m venv venv
 source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install fastapi uvicorn pydantic
 ```
 
-Run the server:
+Run the server from the project root:
 
 ```bash
 uvicorn main:app --reload --port 8000
@@ -116,36 +121,42 @@ API docs available at `http://localhost:8000/docs`.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/reports` | List all active reports |
+| `GET` | `/reports` | List all hazard reports |
 | `POST` | `/reports` | Submit a new hazard report |
-| `POST` | `/reports/{id}/confirm` | Increment `confirmed_count` |
-| `GET` | `/shelters` | List all shelters |
-| `POST` | `/shelters` | Emergency services: add a shelter |
+| `GET` | `/dev/hazards` | List dev-placed hazard points |
+| `POST` | `/dev/hazards` | Add a dev hazard point |
+| `DELETE` | `/dev/hazards` | Clear all dev hazards |
+| `GET` | `/dev/shelters` | List dev-placed shelters |
+| `POST` | `/dev/shelters` | Add a dev shelter |
+| `DELETE` | `/dev/shelters` | Clear all dev shelters |
 
 ---
 
 ## Data Models
 
-**Report** (user or emergency services):
+**Report** (user submitted):
 ```
 id: uuid
-lat: float
-lng: float
-type: enum[flood, blocked_road, fire, structural]
-severity: int  # 1–3
-confirmed_count: int
-source: enum[user, emergency_services]
-timestamp: datetime
+hazardType: str        # flood | blocked_road | fire | structural
+coordinates: [lng, lat]
+description: str (optional)
+createdAt: datetime
 ```
 
-**Shelter** (emergency services only):
+**DevHazard** (dev/demo tool):
 ```
 id: uuid
-lat: float
-lng: float
+coordinates: [lng, lat]
+createdAt: datetime
+```
+
+**DevShelter** (dev/demo tool):
+```
+id: str
 name: str
-is_medical: bool
-added_by: enum[emergency_services]
+coordinates: [lng, lat]
+type: str              # shelter | medical
+createdAt: datetime
 ```
 
 ---
@@ -154,11 +165,11 @@ added_by: enum[emergency_services]
 
 1. User taps **"Get me out"** → browser geolocation gives current lat/lng
 2. Fetch active reports: `GET /reports`
-3. Buffer each report point into an avoidance polygon: `turf.buffer(point, severity * 0.15km)`
-4. Call ORS Directions with `avoid_polygons` (GeoJSON MultiPolygon)
-5. Render returned GeoJSON LineString as a Mapbox GL JS layer
-
-> Validate GeoJSON with `turf.isObject()` before sending to ORS. Log the raw request in console during dev.
+3. Buffer each report point into an avoidance polygon: `turf.buffer(point, radius)`
+4. Merge overlapping polygons with `turf.union`
+5. Also include high-risk zones and dev hazards as avoidance areas
+6. Call ORS Directions with `avoid_polygons` (GeoJSON MultiPolygon)
+7. Render returned GeoJSON LineString as a Mapbox GL JS layer
 
 ---
 
@@ -166,10 +177,10 @@ added_by: enum[emergency_services]
 
 | Phase | Window | Goal |
 |---|---|---|
-| **1** | 0 – 1.5h | Static map + mock data. Mapbox renders. Live flood polygons from Environment Agency API. 2 hardcoded shelters. No backend. |
-| **2** | 1.5 – 3h | User reporting. Report modal (type + severity). `POST /reports`. Map polls `GET /reports` every 10s. Marker opacity scales with `confirmed_count`. |
-| **3** | 3 – 4.5h | Safe routing. "Get me out" button. Turf.js buffers. ORS called with `avoid_polygons`. Route polyline rendered. Left panel shows nearby shelters. |
-| **4** | 4.5 – 5.5h | Emergency services mode. Header toggle (no auth). ES can place shelters and mark high-risk zones (bypasses threshold). |
+| **1** | 0 – 1.5h | Static map + mock data. Mapbox renders. Live flood polygons from Environment Agency API. Hardcoded shelters. No backend. |
+| **2** | 1.5 – 3h | User reporting. Report modal (type + description). `POST /reports`. Map polls `GET /reports` every 10s. |
+| **3** | 3 – 4.5h | Safe routing. "Get me out" button. Turf.js buffers. ORS called with `avoid_polygons`. Route polyline rendered. Shelter panel shows nearby shelters. |
+| **4** | 4.5 – 5.5h | Emergency services mode. Header toggle (no auth). ES can place shelters and mark high-risk zones. |
 | **5** | 5.5 – 6h | Polish + demo prep. Mobile viewport check. Script the demo path end to end. |
 
 ---
@@ -180,7 +191,7 @@ added_by: enum[emergency_services]
 |---|---|
 | **A — Frontend** | Mapbox map rendering, report UI modal, route polyline display, shelter markers |
 | **B — Backend** | FastAPI setup, SQLite data model, all API endpoints |
-| **C — Integration** | Frontend ↔ backend wiring, Turf.js buffering, ORS API call, mock data, demo script |
+| **C — Integration** | Frontend ↔ backend wiring, Turf.js buffering, ORS API call, flood poller, demo script |
 
 ---
 
@@ -188,7 +199,6 @@ added_by: enum[emergency_services]
 
 | Risk | Fix |
 |---|---|
-| ORS rejects malformed GeoJSON | Validate with `turf.isObject()` before sending. Log raw request. |
+| ORS rejects malformed GeoJSON | Validate before sending. Log raw request in console during dev. |
 | No WebSocket for live updates | Poll `GET /reports` every 10s — fine for demo scale. |
 | What3Words integration | Stub: `getW3W(lat, lng)` returns `'mock.word.here'`. Mention verbally in pitch. |
-| Multi-user confirmation threshold | `confirmed_count >= 3` = full opacity marker. Hardcoded, don't overthink it. |
