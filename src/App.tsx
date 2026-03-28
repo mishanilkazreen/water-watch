@@ -4,7 +4,9 @@ import { startFloodPoller, startReportPoller } from './services/poller';
 import type { FloodPolygonResult } from './api/floodApi';
 import type { Report } from './api/reportApi';
 import * as mapManager from './map/mapManager';
-import { Header, MapView, Legend, ReportHazardButton, GetMeOutButton, EmergencyToolbar } from './components';
+import { Header, MapView, Legend, ReportHazardButton, GetMeOutButton, EmergencyToolbar, ShelterPanel, DevToolbar } from './components';
+import { SHELTERS } from './data/shelters';
+import type { Shelter } from './data/shelters';
 
 export default function App() {
   const [floodFeatures, setFloodFeatures] = useState<FloodPolygonResult[]>([]);
@@ -14,6 +16,9 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('Loading flood data…');
   const [statusError, setStatusError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const [devShelters, setDevShelters] = useState<Shelter[]>([]);
+  const [devHazards, setDevHazards] = useState<[number, number][]>([]);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   // Wire flood poller
   useEffect(() => {
@@ -40,10 +45,40 @@ export default function App() {
     return cleanup;
   }, []);
 
+  // Track user location via geolocation
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setUserLocation([pos.coords.longitude, pos.coords.latitude]),
+      () => {} // silently ignore denial — panel handles the null state
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
   const warningCount = floodFeatures.filter((r) => r.warning.severityLevel <= 3).length;
+
+  const allShelters = [...SHELTERS, ...devShelters];
+
+  const devHazardFeatures: Feature[] = devHazards.map((coords) => ({
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'Point', coordinates: coords },
+  }));
+
+  const getAllAvoidFeatures = (): Feature[] => [
+    ...mapManager.getHighRiskZones(),
+    ...devHazardFeatures,
+  ];
 
   return (
     <div id="app">
+      <DevToolbar
+        onHazardPlaced={(coords) => {
+          setDevHazards((prev) => [...prev, coords]);
+          mapManager.addDevHazard(coords);
+        }}
+        onShelterPlaced={(shelter) => setDevShelters((prev) => [...prev, shelter])}
+      />
       <Header
         warningCount={warningCount}
         lastFetch={lastFetch}
@@ -62,10 +97,17 @@ export default function App() {
       <ReportHazardButton />
       <GetMeOutButton
         reports={reports}
-        getHighRiskZones={() => mapManager.getHighRiskZones()}
+        getHighRiskZones={getAllAvoidFeatures}
         onRouteChange={setRoute}
       />
       <EmergencyToolbar emergencyMode={emergencyMode} />
+      <ShelterPanel
+        shelters={allShelters}
+        userLocation={userLocation}
+        reports={reports}
+        getHighRiskZones={getAllAvoidFeatures}
+        onRouteChange={setRoute}
+      />
     </div>
   );
 }

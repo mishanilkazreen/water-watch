@@ -176,6 +176,23 @@ export function setRoute(geojson: Feature | null): void {
 }
 
 /**
+ * Add a dev hazard marker at the given lngLat.
+ */
+export function addDevHazard(lngLat: [number, number]): void {
+  if (!map) return;
+
+  const el = document.createElement('div');
+  el.style.cssText =
+    'font-size:24px;cursor:default;user-select:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));';
+  el.textContent = '⚠️';
+  el.title = 'Dev hazard';
+
+  new mapboxgl.Marker({ element: el })
+    .setLngLat(lngLat)
+    .addTo(map);
+}
+
+/**
  * Task 7.5 — Add a shelter marker at the given lngLat; returns a unique ID.
  */
 export function addShelter(lngLat: [number, number]): string {
