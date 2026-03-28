@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Water Watch — UK Flood Monitor</title>
+
+  <!-- Mapbox GL JS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1923;
+      color: #e8edf2;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 12px 20px;
+      background: #141f2b;
+      border-bottom: 1px solid #1e3048;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    #status {
+      margin-left: auto;
+      font-size: 0.8rem;
+      color: #7a9bb5;
+    }
+
+    #status.loading { color: #f0b429; }
+    #status.error   { color: #e55353; }
+    #status.done    { color: #3ecf8e; }
+
+    #map {
+      flex: 1;
+    }
+
+    /* Popup */
+    .mapboxgl-popup-content {
+      background: #141f2b;
+      color: #e8edf2;
+      border: 1px solid #1e3048;
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 0.82rem;
+      max-width: 280px;
+    }
+
+    .popup-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+    }
+
+    .popup-severity {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .sev-1 { background: #7b1f1f; color: #ffbaba; } /* Severe */
+    .sev-2 { background: #7b3a1f; color: #ffd5b8; } /* Flood Warning */
+    .sev-3 { background: #7b6b1f; color: #fff0b8; } /* Flood Alert */
+    .sev-4 { background: #2c3e50; color: #a8c0d6; } /* No longer in force */
+
+    .popup-row { margin-top: 4px; }
+    .popup-label { color: #7a9bb5; }
+
+    #legend {
+      position: absolute;
+      bottom: 30px;
+      left: 12px;
+      background: #141f2bcc;
+      border: 1px solid #1e3048;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 0.78rem;
+      backdrop-filter: blur(4px);
+    }
+
+    #legend h3 { font-size: 0.8rem; margin-bottom: 8px; color: #a8c0d6; }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Water Watch — UK Flood Monitor</h1>
+  <span id="status" class="loading">Loading flood data…</span>
+</header>
+
+<div id="map"></div>
+
+<div id="legend">
+  <h3>Flood Severity</h3>
+  <div class="legend-row"><div class="legend-swatch" style="background:#c0392b"></div> Severe Flood Warning</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#e67e22"></div> Flood Warning</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#f1c40f"></div> Flood Alert</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#7f8c8d"></div> No Longer in Force</div>
+</div>
+
+<script type="module">
+  import { fetchFloodPolygons } from './mockData.js';
+
+  // ---------------------------------------------------------------------------
+  // Mapbox token — set MAPBOX_TOKEN in your environment or replace the string.
+  // For local dev you can drop the token into a .env file and use a build tool
+  // (Vite, Parcel, etc.) to inject it, or just paste it directly here.
+  // ---------------------------------------------------------------------------
+  const MAPBOX_TOKEN = window.__MAPBOX_TOKEN__ ?? 'YOUR_MAPBOX_TOKEN_HERE';
+
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/dark-v11',
+    center: [-1.5, 53.0],   // centre on England
+    zoom: 6,
+  });
+
+  map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+  const statusEl = document.getElementById('status');
+
+  // Severity → fill colour (matches legend)
+  function severityColor(level) {
+    switch (level) {
+      case 1:  return '#c0392b'; // Severe
+      case 2:  return '#e67e22'; // Flood Warning
+      case 3:  return '#f1c40f'; // Flood Alert
+      default: return '#7f8c8d'; // No longer in force / unknown
+    }
+  }
+
+  function severityClass(level) {
+    return `sev-${level >= 1 && level <= 4 ? level : 4}`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Load flood polygons once the map style is ready
+  // ---------------------------------------------------------------------------
+  map.on('load', async () => {
+    try {
+      statusEl.textContent = 'Fetching flood warnings…';
+      statusEl.className = 'loading';
+
+      const polygons = await fetchFloodPolygons();
+
+      if (polygons.length === 0) {
+        statusEl.textContent = 'No active flood warnings';
+        statusEl.className = 'done';
+        return;
+      }
+
+      // Build a GeoJSON FeatureCollection from all fetched polygons
+      const geojson = {
+        type: 'FeatureCollection',
+        features: polygons.map(({ feature }) => feature),
+      };
+
+      map.addSource('flood-warnings', {
+        type: 'geojson',
+        data: geojson,
+      });
+
+      // Fill layer — colour driven by severity
+      map.addLayer({
+        id: 'flood-fill',
+        type: 'fill',
+        source: 'flood-warnings',
+        paint: {
+          'fill-color': [
+            'match',
+            ['get', 'severity'],
+            1, '#c0392b',
+            2, '#e67e22',
+            3, '#f1c40f',
+            /* default */ '#7f8c8d',
+          ],
+          'fill-opacity': 0.45,
+        },
+      });
+
+      // Outline layer
+      map.addLayer({
+        id: 'flood-outline',
+        type: 'line',
+        source: 'flood-warnings',
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'severity'],
+            1, '#e74c3c',
+            2, '#e67e22',
+            3, '#f39c12',
+            /* default */ '#95a5a6',
+          ],
+          'line-width': 1.5,
+          'line-opacity': 0.8,
+        },
+      });
+
+      // -----------------------------------------------------------------------
+      // Popup on click
+      // -----------------------------------------------------------------------
+      map.on('click', 'flood-fill', (e) => {
+        const props = e.features[0].properties;
+        const sevClass = severityClass(props.severity);
+
+        const html = `
+          <div class="popup-title">${props.description || props.floodAreaID || 'Flood Area'}</div>
+          <span class="popup-severity ${sevClass}">${props.severityLevel || 'Unknown severity'}</span>
+          ${props.riverOrSea ? `<div class="popup-row"><span class="popup-label">River / Sea: </span>${props.riverOrSea}</div>` : ''}
+          ${props.floodAreaID ? `<div class="popup-row"><span class="popup-label">Area ID: </span>${props.floodAreaID}</div>` : ''}
+        `;
+
+        new mapboxgl.Popup({ closeButton: true, maxWidth: '300px' })
+          .setLngLat(e.lngLat)
+          .setHTML(html)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'flood-fill', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'flood-fill', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      statusEl.textContent = `${polygons.length} active flood warning${polygons.length !== 1 ? 's' : ''}`;
+      statusEl.className = 'done';
+
+    } catch (err) {
+      console.error('Failed to load flood data:', err);
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = 'error';
+    }
+  });
+</script>
+
+</body>
+</html>
