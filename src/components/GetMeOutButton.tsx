@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { Feature } from 'geojson';
-import { computeSafeRoute, RouteNotFoundError } from '../services/routingService';
-import type { FloodPolygonResult } from '../api/floodApi';
+import { computeSafeRoute, geocodeAddress, RouteNotFoundError, GeolocationError } from '../services/routingService';
+import type { Report } from '../api/reportApi';
 
 interface GetMeOutButtonProps {
-  floodFeatures: FloodPolygonResult[];
+  reports: Report[];
+  getHighRiskZones: () => Feature[];
   onRouteChange: (route: Feature | null) => void;
 }
 
@@ -19,15 +20,7 @@ const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px',
 };
 
-async function geocodeAddress(query: string): Promise<[number, number]> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=gb&format=json&limit=1`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-  const data = await res.json();
-  if (!data.length) throw new Error(`Could not find "${query}" — try a full postcode or town name.`);
-  return [parseFloat(data[0].lon), parseFloat(data[0].lat)];
-}
-
-export default function GetMeOutButton({ floodFeatures, onRouteChange }: GetMeOutButtonProps) {
+export default function GetMeOutButton({ reports, getHighRiskZones, onRouteChange }: GetMeOutButtonProps) {
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +60,8 @@ export default function GetMeOutButton({ floodFeatures, onRouteChange }: GetMeOu
         setError('Location access denied — enter your postcode or address below.');
         setManualOrigin(true);
         setStep('dest-form');
-      }
+      },
+      { timeout: 10000, maximumAge: 60000 }
     );
   }
 
@@ -89,13 +83,25 @@ export default function GetMeOutButton({ floodFeatures, onRouteChange }: GetMeOu
       if (!destAddress.trim()) { setError('Please enter a destination.'); setStep('dest-form'); return; }
       const destination = await geocodeAddress(destAddress);
 
-      const route = await computeSafeRoute(resolvedOrigin, destination, floodFeatures.map((r) => r.feature));
+      // Convert hazard reports to GeoJSON point features for avoidance buffering
+      const hazardFeatures: Feature[] = reports.map((r) => ({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'Point', coordinates: r.coordinates },
+      }));
+
+      // Also include any high-risk zones drawn by emergency services
+      const allAvoidFeatures = [...hazardFeatures, ...getHighRiskZones()];
+
+      const route = await computeSafeRoute(resolvedOrigin, destination, allAvoidFeatures);
       onRouteChange(route);
       reset();
     } catch (err) {
       setStep('dest-form');
       if (err instanceof RouteNotFoundError) {
         setError('No safe route found — please contact emergency services.');
+      } else if (err instanceof GeolocationError) {
+        setError(err.message);
       } else if (err instanceof Error) {
         setError(err.message);
       } else {

@@ -8,6 +8,7 @@ let floodLayersAdded = false;
 let reportMarkers: mapboxgl.Marker[] = [];
 let shelterCounter = 0;
 let zoneCounter = 0;
+let highRiskZoneFeatures: Feature[] = [];
 
 // Severity colour match expression for Mapbox paint
 const severityMatchExpression: mapboxgl.Expression = [
@@ -34,6 +35,21 @@ export function init(containerId: string, token: string): mapboxgl.Map {
   });
 
   map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+  const geolocate = new mapboxgl.GeolocateControl({
+    positionOptions: { enableHighAccuracy: true },
+    trackUserLocation: true,
+    showUserHeading: true,
+    showAccuracyCircle: false,
+  });
+
+  map.addControl(geolocate, 'top-right');
+
+  // Auto-trigger location on map load
+  map.once('load', () => {
+    // Small delay ensures the control is fully mounted before triggering
+    setTimeout(() => geolocate.trigger(), 500);
+  });
 
   return map;
 }
@@ -221,6 +237,8 @@ export function addHighRiskZone(polygon: Feature): string {
     },
   });
 
+  highRiskZoneFeatures.push(polygon);
+
   return id;
 }
 
@@ -232,6 +250,13 @@ export function getMap(): mapboxgl.Map | null {
 }
 
 /**
+ * Returns all high-risk zone features placed in this session.
+ */
+export function getHighRiskZones(): Feature[] {
+  return highRiskZoneFeatures;
+}
+
+/**
  * Reset module state — used in tests.
  */
 export function _reset(): void {
@@ -240,4 +265,5 @@ export function _reset(): void {
   reportMarkers = [];
   shelterCounter = 0;
   zoneCounter = 0;
+  highRiskZoneFeatures = [];
 }

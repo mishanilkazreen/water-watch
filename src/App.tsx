@@ -3,6 +3,7 @@ import type { Feature } from 'geojson';
 import { startFloodPoller, startReportPoller } from './services/poller';
 import type { FloodPolygonResult } from './api/floodApi';
 import type { Report } from './api/reportApi';
+import * as mapManager from './map/mapManager';
 import { Header, MapView, Legend, ReportHazardButton, GetMeOutButton, EmergencyToolbar } from './components';
 
 export default function App() {
@@ -59,7 +60,11 @@ export default function App() {
       />
       <Legend />
       <ReportHazardButton />
-      <GetMeOutButton floodFeatures={floodFeatures} onRouteChange={setRoute} />
+      <GetMeOutButton
+        reports={reports}
+        getHighRiskZones={() => mapManager.getHighRiskZones()}
+        onRouteChange={setRoute}
+      />
       <EmergencyToolbar emergencyMode={emergencyMode} />
     </div>
   );

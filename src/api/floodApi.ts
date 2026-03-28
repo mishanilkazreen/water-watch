@@ -2,6 +2,45 @@ import type { Feature, FeatureCollection } from 'geojson';
 
 const FLOODS_URL = 'https://environment.data.gov.uk/flood-monitoring/id/floods';
 
+// --- DEV MOCK: Portsmouth test flood zone ---
+function makeCirclePolygon(
+  centreLng: number,
+  centreLat: number,
+  radiusDeg: number,
+  steps = 32
+): Feature {
+  const coords: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    coords.push([
+      centreLng + radiusDeg * Math.cos(angle),
+      centreLat + radiusDeg * Math.sin(angle),
+    ]);
+  }
+  return {
+    type: 'Feature',
+    properties: {
+      description: 'DEV — Portsmouth Harbour flood risk area',
+      severityLevel: 2,
+      severity: 'Flood Warning',
+      floodAreaID: 'dev-portsmouth-001',
+      riverOrSea: 'Portsmouth Harbour',
+    },
+    geometry: { type: 'Polygon', coordinates: [coords] },
+  };
+}
+
+const MOCK_PORTSMOUTH: FloodPolygonResult = {
+  feature: makeCirclePolygon(-1.087, 50.798, 0.025),
+  warning: {
+    floodAreaID: 'dev-portsmouth-001',
+    description: 'DEV — Portsmouth Harbour flood risk area',
+    severityLevel: 2,
+    severity: 'Flood Warning',
+    floodArea: { riverOrSea: 'Portsmouth Harbour' },
+  },
+};
+
 /**
  * Typed error for EA Flood Monitoring API failures.
  */
@@ -98,10 +137,12 @@ export async function fetchFloodPolygons(): Promise<FloodPolygonResult[]> {
       })
   );
 
-  return results
+  const live = results
     .filter(
       (r): r is PromiseFulfilledResult<FloodPolygonResult> =>
         r.status === 'fulfilled' && r.value !== null
     )
     .map((r) => r.value);
+
+  return [MOCK_PORTSMOUTH, ...live];
 }

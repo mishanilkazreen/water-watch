@@ -25,7 +25,7 @@ export default function ReportHazardButton() {
     setError(null);
     setLocError(null);
     setModalOpen(true);
-    // Auto-fetch location
+    // Auto-fetch location with a 10s timeout
     if (navigator.geolocation) {
       setLocating(true);
       navigator.geolocation.getCurrentPosition(
@@ -37,7 +37,8 @@ export default function ReportHazardButton() {
         () => {
           setLocError('Could not get your location — enter coordinates manually.');
           setLocating(false);
-        }
+        },
+        { timeout: 10000, maximumAge: 60000 }
       );
     }
   }
@@ -172,11 +173,11 @@ export default function ReportHazardButton() {
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button type="button" onClick={closeModal} style={{ padding: '9px 18px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" disabled={descOver || submitting || locating} style={{
+                <button type="submit" disabled={descOver || submitting} style={{
                   padding: '9px 18px', borderRadius: '6px', border: 'none',
-                  backgroundColor: descOver || submitting || locating ? '#aaa' : '#e74c3c',
+                  backgroundColor: descOver || submitting ? '#aaa' : '#e74c3c',
                   color: '#fff', fontSize: '14px', fontWeight: 600,
-                  cursor: descOver || submitting || locating ? 'not-allowed' : 'pointer',
+                  cursor: descOver || submitting ? 'not-allowed' : 'pointer',
                 }}>
                   {submitting ? 'Submitting…' : 'Submit Report'}
                 </button>

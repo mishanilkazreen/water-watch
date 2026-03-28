@@ -26,6 +26,11 @@ body {
   max-width: 280px;
 }
 
+/* Ensure map controls are visible */
+.mapboxgl-ctrl-top-right {
+  z-index: 10;
+}
+
 /* Severity badge classes */
 .sev-1 { background: #7b1f1f; color: #ffbaba; } /* Severe */
 .sev-2 { background: #7b3a1f; color: #ffd5b8; } /* Flood Warning */

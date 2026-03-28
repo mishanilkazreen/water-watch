@@ -16,13 +16,23 @@ export class GeolocationError extends Error {
   }
 }
 
+export async function geocodeAddress(query: string): Promise<[number, number]> {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=gb&format=json&limit=1`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  const data = await res.json();
+  if (!data.length) {
+    throw new GeolocationError(`Could not find "${query}" — try a full postcode or town name.`);
+  }
+  return [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+}
+
 export async function computeSafeRoute(
   origin: [number, number],
   destination: [number, number],
-  floodFeatures: Feature[]
+  hazardFeatures: Feature[]
 ): Promise<Feature> {
-  // Buffer each flood feature by 200 metres and filter out nulls
-  const buffers = floodFeatures
+  // Buffer each hazard point/polygon by 200 m and filter out nulls
+  const buffers = hazardFeatures
     .map((f) => buffer(f, 200, { units: 'meters' }))
     .filter((b): b is NonNullable<typeof b> => b !== null && b !== undefined);
 
@@ -40,7 +50,8 @@ export async function computeSafeRoute(
   };
 
   if (avoidPolygon) {
-    body.options = { avoid_polygons: avoidPolygon };
+    // ORS expects a GeoJSON geometry object, not a Feature wrapper
+    body.options = { avoid_polygons: avoidPolygon.geometry ?? avoidPolygon };
   }
 
   try {
@@ -57,6 +68,8 @@ export async function computeSafeRoute(
     );
 
     if (!response.ok) {
+      const errText = await response.text();
+      console.error('[ORS] Error response:', response.status, errText);
       throw new RouteNotFoundError('No safe route found — please contact emergency services');
     }
 
