@@ -119,7 +119,13 @@ export default function App() {
         getHighRiskZones={getAllAvoidFeatures}
         onRouteChange={setRoute}
       />
-      <EmergencyToolbar emergencyMode={emergencyMode} />
+      <EmergencyToolbar
+        emergencyMode={emergencyMode}
+        onShelterPlaced={(shelter) => {
+          postDevShelter(shelter).catch(() => {});
+          setDevShelters((prev) => [...prev, shelter]);
+        }}
+      />
       <ShelterPanel
         shelters={allShelters}
         userLocation={userLocation}

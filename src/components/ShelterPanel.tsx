@@ -5,6 +5,11 @@ import type { Shelter } from '../data/shelters';
 import type { Report } from '../api/reportApi';
 import { computeSafeRoute, RouteNotFoundError } from '../services/routingService';
 import * as mapManager from '../map/mapManager';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — @turf/buffer types don't resolve correctly with bundler moduleResolution
+import buffer from '@turf/buffer';
+import { point } from '@turf/helpers';
 
 interface ShelterPanelProps {
   shelters: Shelter[];
@@ -38,6 +43,7 @@ export default function ShelterPanel({
   const [routeStatus, setRouteStatus] = useState<RouteStatus>('idle');
   const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
   const [shelterErrors, setShelterErrors] = useState<Record<string, string>>({});
+  const [shelterWarnings, setShelterWarnings] = useState<Record<string, string>>({});
 
   // Track shelter IDs that already have a map marker placed
   const placedShelterIds = useRef<Set<string>>(new Set());
@@ -64,6 +70,7 @@ export default function ShelterPanel({
       setSelectedId(null);
       setRouteSummary(null);
       setRouteStatus('idle');
+      setShelterWarnings((prev) => { const next = { ...prev }; delete next[id]; return next; });
       return;
     }
 
@@ -94,18 +101,36 @@ export default function ShelterPanel({
       delete next[id];
       return next;
     });
+    setShelterWarnings((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+
+    // Check if destination is inside a hazard zone
+    const hazardFeatures: Feature[] = reports.map((r) => ({
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Point', coordinates: r.coordinates },
+    }));
+    const allHazards = [...hazardFeatures, ...getHighRiskZones()];
+    const dest = point(shelter.coordinates);
+    const inHazard = allHazards.some((f) => {
+      const buf = buffer(f, 200, { units: 'meters' });
+      return buf ? booleanPointInPolygon(dest, buf) : false;
+    });
+    if (inHazard) {
+      setShelterWarnings((prev) => ({
+        ...prev,
+        [id]: '⚠️ Destination is in a hazardous area',
+      }));
+    }
 
     try {
-      const hazardFeatures: Feature[] = reports.map((r) => ({
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'Point', coordinates: r.coordinates },
-      }));
-
       const route = await computeSafeRoute(
         userLocation,
         shelter.coordinates,
-        [...hazardFeatures, ...getHighRiskZones()]
+        allHazards
       );
 
       mapManager.setRoute(route);
@@ -210,6 +235,7 @@ export default function ShelterPanel({
                 const isSelected = shelter.id === selectedId;
                 const isLoading = isSelected && routeStatus === 'loading';
                 const shelterError = shelter.errorMessage;
+                const shelterWarning = shelterWarnings[shelter.id];
 
                 const itemStyle: React.CSSProperties = {
                   padding: '9px 12px',
@@ -256,6 +282,16 @@ export default function ShelterPanel({
                     {isSelected && routeSummary && routeStatus === 'idle' && (
                       <div style={{ marginTop: '4px', fontSize: '11px', color: '#3ecf8e' }}>
                         {routeSummary.distanceKm.toFixed(1)} km · {Math.round(routeSummary.durationMin)} min
+                      </div>
+                    )}
+
+                    {/* Destination hazard warning */}
+                    {isSelected && shelterWarning && (
+                      <div
+                        role="alert"
+                        style={{ marginTop: '4px', fontSize: '11px', color: '#f39c12', fontWeight: 600 }}
+                      >
+                        {shelterWarning}
                       </div>
                     )}
 

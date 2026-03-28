@@ -3,13 +3,16 @@ import mapboxgl from 'mapbox-gl';
 import * as mapManager from '../map/mapManager';
 import { Feature, Polygon } from 'geojson';
 
+import { Shelter } from '../data/shelters';
+
 interface EmergencyToolbarProps {
   emergencyMode: boolean;
+  onShelterPlaced: (shelter: Shelter) => void;
 }
 
 type ActiveTool = 'shelter' | 'zone' | null;
 
-export default function EmergencyToolbar({ emergencyMode }: EmergencyToolbarProps) {
+export default function EmergencyToolbar({ emergencyMode, onShelterPlaced }: EmergencyToolbarProps) {
   const [activeTool, setActiveTool] = useState<ActiveTool>(null);
   const [zonePoints, setZonePoints] = useState<[number, number][]>([]);
   const zoneClickHandlerRef = useRef<((e: mapboxgl.MapMouseEvent) => void) | null>(null);
@@ -62,7 +65,16 @@ export default function EmergencyToolbar({ emergencyMode }: EmergencyToolbarProp
     setActiveTool('shelter');
 
     m.once('click', (e) => {
-      mapManager.addShelter([e.lngLat.lng, e.lngLat.lat]);
+      const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      const name = window.prompt('Shelter name:') ?? 'Shelter';
+      const shelter: Shelter = {
+        id: crypto.randomUUID(),
+        name,
+        coordinates: coords,
+        type: 'shelter',
+      };
+      mapManager.addShelter(coords);
+      onShelterPlaced(shelter);
       setActiveTool(null);
     });
   }
