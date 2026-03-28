@@ -1,0 +1,32 @@
+{
+  "name": "water-watch",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest --run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@turf/buffer": "^6.5.0",
+    "@turf/helpers": "^7.3.4",
+    "@turf/union": "^6.5.0",
+    "axios": "^1.14.0",
+    "mapbox-gl": "^3.20.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/mapbox-gl": "^3.4.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "fast-check": "^3.22.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.2",
+    "vitest": "^2.0.5"
+  }
+}
