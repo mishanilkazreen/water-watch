@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Feature } from 'geojson';
 import { startFloodPoller, startReportPoller } from './services/poller';
 import type { FloodPolygonResult } from './api/floodApi';
 import type { Report } from './api/reportApi';
+import { getDevHazards, postDevHazard, getDevShelters, postDevShelter } from './api/devApi';
 import * as mapManager from './map/mapManager';
-import { Header, MapView, Legend, ReportHazardButton, GetMeOutButton, EmergencyToolbar, ShelterPanel, DevToolbar } from './components';
+import { Header, MapView, ReportHazardButton, GetMeOutButton, EmergencyToolbar, ShelterPanel, DevToolbar } from './components';
 import { SHELTERS } from './data/shelters';
 import type { Shelter } from './data/shelters';
 
@@ -19,6 +20,32 @@ export default function App() {
   const [devShelters, setDevShelters] = useState<Shelter[]>([]);
   const [devHazards, setDevHazards] = useState<[number, number][]>([]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+
+  // Load persisted dev hazards and shelters on startup
+  useEffect(() => {
+    getDevHazards().then((hazards) => {
+      setDevHazards(hazards.map((h) => h.coordinates as [number, number]));
+    }).catch(() => {});
+
+    getDevShelters().then((shelters) => {
+      setDevShelters(
+        shelters.map((s) => ({
+          id: s.id,
+          name: s.name,
+          coordinates: s.coordinates as [number, number],
+          type: s.type as Shelter['type'],
+        }))
+      );
+    }).catch(() => {});
+  }, []);
+
+  // Sync dev hazard map markers whenever devHazards changes
+  const prevHazardCount = useRef(0);
+  useEffect(() => {
+    const newOnes = devHazards.slice(prevHazardCount.current);
+    newOnes.forEach((c) => mapManager.addDevHazard(c));
+    prevHazardCount.current = devHazards.length;
+  }, [devHazards]);
 
   // Wire flood poller
   useEffect(() => {
@@ -72,13 +99,6 @@ export default function App() {
 
   return (
     <div id="app">
-      <DevToolbar
-        onHazardPlaced={(coords) => {
-          setDevHazards((prev) => [...prev, coords]);
-          mapManager.addDevHazard(coords);
-        }}
-        onShelterPlaced={(shelter) => setDevShelters((prev) => [...prev, shelter])}
-      />
       <Header
         warningCount={warningCount}
         lastFetch={lastFetch}
@@ -93,7 +113,6 @@ export default function App() {
         emergencyMode={emergencyMode}
         onRouteChange={setRoute}
       />
-      <Legend />
       <ReportHazardButton />
       <GetMeOutButton
         reports={reports}
@@ -107,6 +126,16 @@ export default function App() {
         reports={reports}
         getHighRiskZones={getAllAvoidFeatures}
         onRouteChange={setRoute}
+      />
+      <DevToolbar
+        onHazardPlaced={(coords) => {
+          postDevHazard(coords).catch(() => {});
+          setDevHazards((prev) => [...prev, coords]);
+        }}
+        onShelterPlaced={(shelter) => {
+          postDevShelter(shelter).catch(() => {});
+          setDevShelters((prev) => [...prev, shelter]);
+        }}
       />
     </div>
   );

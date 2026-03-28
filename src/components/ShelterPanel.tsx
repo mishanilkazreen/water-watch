@@ -131,7 +131,7 @@ export default function ShelterPanel({
   const panelStyle: React.CSSProperties = {
     position: 'absolute',
     top: '110px',
-    right: '10px',
+    left: '10px',
     zIndex: 10,
     width: '220px',
     backgroundColor: '#1a1a2e',

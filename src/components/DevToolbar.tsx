@@ -81,31 +81,43 @@ export default function DevToolbar({ onHazardPlaced, onShelterPlaced }: DevToolb
     });
   }
 
-  const toolbarStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
+  const [open, setOpen] = useState(false);
+
+  const toggleButtonStyle: React.CSSProperties = {
+    position: 'absolute',
+    bottom: 24,
+    left: 12,
+    zIndex: 1000,
     padding: '6px 12px',
     background: '#f59e0b',
-    borderBottom: '2px solid #d97706',
-    flexShrink: 0,
-    zIndex: 20,
+    border: '2px solid #d97706',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: '12px',
+    color: '#78350f',
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
   };
 
-  const badgeStyle: React.CSSProperties = {
-    background: '#92400e',
-    color: '#fff',
-    fontSize: '11px',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.08em',
-    padding: '2px 7px',
-    borderRadius: '4px',
-    marginRight: '4px',
+  const popupStyle: React.CSSProperties = {
+    position: 'absolute',
+    bottom: 60,
+    left: 12,
+    zIndex: 1000,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    background: 'rgba(255,255,255,0.95)',
+    border: '1px solid #d97706',
+    borderRadius: '8px',
+    padding: '10px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
   };
 
   const baseButtonStyle: React.CSSProperties = {
-    padding: '5px 12px',
+    padding: '6px 14px',
     border: '2px solid transparent',
     borderRadius: '5px',
     cursor: mapReady ? 'pointer' : 'not-allowed',
@@ -129,31 +141,43 @@ export default function DevToolbar({ onHazardPlaced, onShelterPlaced }: DevToolb
   };
 
   return (
-    <div style={toolbarStyle} aria-label="Dev Mode toolbar">
-      <span style={badgeStyle}>Dev Mode</span>
+    <>
       <button
-        style={hazardStyle}
-        onClick={handleHazardClick}
-        disabled={!mapReady}
-        title="Click the map to place a hazard marker"
-        aria-pressed={activeTool === 'hazard'}
+        style={toggleButtonStyle}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="Toggle Dev Mode"
       >
-        ⚠️ Place Hazard
+        🛠 Dev Mode
       </button>
-      <button
-        style={shelterStyle}
-        onClick={handleShelterClick}
-        disabled={!mapReady}
-        title="Click the map to place a shelter marker"
-        aria-pressed={activeTool === 'shelter'}
-      >
-        🏠 Place Shelter
-      </button>
-      {activeTool && (
-        <span style={{ fontSize: '12px', color: '#78350f', fontStyle: 'italic' }}>
-          Click the map to place…
-        </span>
+
+      {open && (
+        <div style={popupStyle} aria-label="Dev Mode toolbar">
+          <button
+            style={hazardStyle}
+            onClick={handleHazardClick}
+            disabled={!mapReady}
+            title="Click the map to place a hazard marker"
+            aria-pressed={activeTool === 'hazard'}
+          >
+            ⚠️ Place Hazard
+          </button>
+          <button
+            style={shelterStyle}
+            onClick={handleShelterClick}
+            disabled={!mapReady}
+            title="Click the map to place a shelter marker"
+            aria-pressed={activeTool === 'shelter'}
+          >
+            🏠 Place Shelter
+          </button>
+          {activeTool && (
+            <span style={{ fontSize: '12px', color: '#78350f', fontStyle: 'italic', textAlign: 'center' }}>
+              Click the map to place…
+            </span>
+          )}
+        </div>
       )}
-    </div>
+    </>
   );
 }
