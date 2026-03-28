@@ -1,0 +1,59 @@
+/* Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+}
+
+/* App shell */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  position: relative;
+}
+
+/* Mapbox popup */
+.mapboxgl-popup-content {
+  max-width: 280px;
+}
+
+/* Severity badge classes */
+.sev-1 { background: #7b1f1f; color: #ffbaba; } /* Severe */
+.sev-2 { background: #7b3a1f; color: #ffd5b8; } /* Flood Warning */
+.sev-3 { background: #7b6b1f; color: #fff0b8; } /* Flood Alert */
+.sev-4 { background: #2c3e50; color: #a8c0d6; } /* No Longer in Force */
+
+/* Mobile: max-width 599px */
+@media (max-width: 599px) {
+  /* Legend: bottom-left, raised above nav controls */
+  .legend {
+    bottom: 80px !important;
+    left: 8px !important;
+  }
+
+  /* Popup max-width */
+  .mapboxgl-popup-content {
+    max-width: 90vw;
+  }
+
+  /* Report Hazard button */
+  .btn-report-hazard {
+    bottom: 130px !important;
+    right: 12px !important;
+  }
+
+  /* Get Me Out button */
+  .btn-get-me-out {
+    bottom: 70px !important;
+    right: 12px !important;
+  }
+}
