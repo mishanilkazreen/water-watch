@@ -1,4 +1,4 @@
-# Water Watch
+# Water Watch - Hack Pompey 2026
 
 Real-time disaster navigation app. Users and emergency services report hazards (floods, blocked roads). Reports are buffered into avoidance polygons and fed into a routing engine that calculates the quickest safe evacuation route. Emergency services can declare high-risk zones and place shelters on the map.
 
@@ -169,3 +169,20 @@ createdAt: datetime
 5. Also include high-risk zones and dev hazards as avoidance areas
 6. Call ORS Directions with `avoid_polygons` (GeoJSON MultiPolygon)
 7. Render returned GeoJSON LineString as a Mapbox GL JS layer
+
+
+---
+
+## Notes
+
+You may have to refresh the page in order for the data to load.
+
+
+---
+
+## Authors
+
+- Mishanil Kazreen ([@mishanilkazreen](https://github.com/mishanilkazreen))
+- Josh Fox ([@Phoenix-Gamer871](https://github.com/Phoenix-Gamer871))
+- Hiwa Rasul ([@hiwarasul389-alt](https://github.com/hiwarasul389-alt)) 
+- Fahmi Ahmed ([@sfa39](https://github.com/sfa39))
