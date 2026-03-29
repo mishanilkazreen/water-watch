@@ -1,4 +1,4 @@
-# One Piece — Hack Pompey
+# Water Watch
 
 Real-time disaster navigation app. Users and emergency services report hazards (floods, blocked roads). Reports are buffered into avoidance polygons and fed into a routing engine that calculates the quickest safe evacuation route. Emergency services can declare high-risk zones and place shelters on the map.
 
@@ -40,7 +40,6 @@ water-watch/
 ├── index.html          # HTML entry point
 ├── main.py             # FastAPI backend (run from root)
 ├── reports.db          # SQLite database (auto-created)
-├── mockData.js         # Legacy flood data reference
 ├── .env.example        # Token template — copy to .env
 ├── src/                # React + Vite + TypeScript frontend
 │   ├── App.tsx
@@ -170,35 +169,3 @@ createdAt: datetime
 5. Also include high-risk zones and dev hazards as avoidance areas
 6. Call ORS Directions with `avoid_polygons` (GeoJSON MultiPolygon)
 7. Render returned GeoJSON LineString as a Mapbox GL JS layer
-
----
-
-## Build Phases
-
-| Phase | Window | Goal |
-|---|---|---|
-| **1** | 0 – 1.5h | Static map + mock data. Mapbox renders. Live flood polygons from Environment Agency API. Hardcoded shelters. No backend. |
-| **2** | 1.5 – 3h | User reporting. Report modal (type + description). `POST /reports`. Map polls `GET /reports` every 10s. |
-| **3** | 3 – 4.5h | Safe routing. "Get me out" button. Turf.js buffers. ORS called with `avoid_polygons`. Route polyline rendered. Shelter panel shows nearby shelters. |
-| **4** | 4.5 – 5.5h | Emergency services mode. Header toggle (no auth). ES can place shelters and mark high-risk zones. |
-| **5** | 5.5 – 6h | Polish + demo prep. Mobile viewport check. Script the demo path end to end. |
-
----
-
-## Division of Labour
-
-| Person | Owns |
-|---|---|
-| **A — Frontend** | Mapbox map rendering, report UI modal, route polyline display, shelter markers |
-| **B — Backend** | FastAPI setup, SQLite data model, all API endpoints |
-| **C — Integration** | Frontend ↔ backend wiring, Turf.js buffering, ORS API call, flood poller, demo script |
-
----
-
-## Risks & Mitigations
-
-| Risk | Fix |
-|---|---|
-| ORS rejects malformed GeoJSON | Validate before sending. Log raw request in console during dev. |
-| No WebSocket for live updates | Poll `GET /reports` every 10s — fine for demo scale. |
-| What3Words integration | Stub: `getW3W(lat, lng)` returns `'mock.word.here'`. Mention verbally in pitch. |
