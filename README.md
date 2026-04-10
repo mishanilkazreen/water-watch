@@ -3,6 +3,11 @@
 Real-time disaster navigation app. Users and emergency services report hazards (floods, blocked roads). Reports are buffered into avoidance polygons and fed into a routing engine that calculates the quickest safe evacuation route. Emergency services can declare high-risk zones and place shelters on the map.
 
 ---
+## Video Demo
+
+https://youtu.be/-UeVvBpazPk
+
+--
 
 ## API Keys
 
